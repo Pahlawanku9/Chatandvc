@@ -3,43 +3,97 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chat FIX - Pasti Nyambung</title>
-<script src="https://download.agora.io/sdk/release/AgoraRTC_N_4.20.2.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<title>Chat & VC FIX</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
 <style>
-body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-#join{position:fixed;inset:0;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;z-index:99}
-#join div{width:90%;max-width:320px;padding:20px}
-input{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:8px}
-button{width:100%;padding:12px;background:#25D366;color:#fff;border:0;border-radius:8px;font-weight:bold}
-#header{height:50px;background:#075E54;display:flex;align-items:center;padding:0 10px}
-#msgs{height:calc(100vh - 110px);overflow:auto;padding:10px;background:#e5ddd5}
-.bubble{padding:8px 10px;border-radius:8px;margin:5px 0;color:#000;max-width:70%}
-.me{background:#dcf8c6;margin-left:auto}
-.other{background:#fff}
-#inputBar{position:fixed;bottom:0;width:100%;height:50px;background:#f0f0f0;display:flex;padding:5px;gap:5px}
-#inputBar input{flex:1;margin:0}
-#videoBox{position:fixed;inset:0;background:#000;z-index:50;display:none}
-#myVideo{position:absolute;width:110px;height:140px;right:10px;bottom:80px;border:2px solid #fff;border-radius:8px}
-#end{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:red;color:#fff;border:0;padding:10px 20px;border-radius:20px}
+*{box-sizing:border-box}body{margin:0;font-family:sans-serif;background:#0f172a;color:#fff}
+#login{height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#fff;color:#000;padding:20px;border-radius:12px;width:90%;max-width:320px}
+input{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #ccc}
+button{width:100%;padding:12px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-weight:bold}
+#app{display:none;height:100vh;flex-direction:column}
+#msgs{flex:1;overflow-y:auto;padding:10px;background:#1e293b}
+.m{margin:6px 0;padding:8px 12px;background:#334155;border-radius:10px;max-width:80%}
+.me{background:#22c55e;color:#000;align-self:flex-end;margin-left:auto}
+#bar{display:flex;padding:10px;background:#0f172a;gap:8px}
+#txt{flex:1;padding:10px;border-radius:20px;border:none}
+#videos{display:flex;gap:10px;padding:10px;background:#000}
+.v{width:50%;aspect-ratio:1;background:#222;border-radius:10px}
 </style>
 </head>
 <body>
-<div id="join"><div><h3>Masuk Room FIX</h3><input id="roomIn" value="1"><input id="nameIn" placeholder="Nama kamu"><button onclick="join()">Masuk</button></div></div>
-<div id="header"><span id="roomName"></span><span style="margin-left:auto;font-size:22px" onclick="startVideo()">📹</span></div>
+<div id="login">
+<div class="card">
+<h3>Masuk Room FINAL</h3>
+<input id="room" value="1" placeholder="No Room">
+<input id="name" placeholder="Nama kamu">
+<button onclick="masuk()">Masuk</button>
+<p id="st" style="font-size:12px;color:green"></p>
+</div>
+</div>
+<div id="app">
+<div id="videos"><div id="local" class="v"></div><div id="remote" class="v"></div></div>
 <div id="msgs"></div>
-<div id="inputBar"><input id="txt" placeholder="Ketik"><button onclick="send()">➤</button></div>
-<div id="videoBox"><div id="remoteVideo" style="width:100%;height:100%"></div><div id="myVideo"></div><button id="end" onclick="stopCall()">Tutup</button></div>
+<div id="bar">
+<input id="txt" placeholder="Ketik chat..." onkeypress="if(event.key=='Enter')kirim()">
+<button onclick="kirim()" style="width:60px">Kirim</button>
+<button onclick="startVC()" style="width:60px;background:#3b82f6">📹</button>
+</div>
+</div>
 <script>
-var cfg={databaseURL:"https://chat-fix-1a-default-rtdb.firebaseio.com/"};firebase.initializeApp(cfg);
-var APP_ID="cc59dc5a6c0d4fd09c6ca3cf5f5c11f4";var TOKEN_URL="/api/rtc-token";
-var channel,myName,dbRef,rtcClient,localAudio,localVideo;
-function join(){channel=document.getElementById('roomIn').value.trim();myName=document.getElementById('nameIn').value.trim();if(!myName){alert('Isi nama');return}document.getElementById('join').style.display='none';document.getElementById('roomName').innerText=channel;dbRef=firebase.database().ref('fix/'+channel);dbRef.on('child_added',s=>{var d=s.val();var div=document.createElement('div');div.className='bubble '+(d.name===myName?'me':'other');div.innerHTML='<b>'+d.name+'</b><br>'+d.text;document.getElementById('msgs').appendChild(div);document.getElementById('msgs').scrollTop=9999;});dbRef.push({name:myName,text:'gabung'});}
-function send(){var t=document.getElementById('txt').value.trim();if(!t)return;dbRef.push({name:myName,text:t});document.getElementById('txt').value='';}
-async function getToken(){try{var r=await fetch(TOKEN_URL+'?channel='+channel+'&uid=0');var j=await r.json();return j.token}catch(e){return null}}
-async function startVideo(){document.getElementById('videoBox').style.display='block';rtcClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});var tok=await getToken();await rtcClient.join(APP_ID,channel,tok||null,null);localVideo=await AgoraRTC.createCameraVideoTrack();localVideo.play(document.getElementById('myVideo'));localAudio=await AgoraRTC.createMicrophoneAudioTrack();await rtcClient.publish([localAudio,localVideo]);rtcClient.on('user-published',async(u,m)=>{await rtcClient.subscribe(u,m);if(m==='video')u.videoTrack.play(document.getElementById('remoteVideo'));if(m==='audio')u.audioTrack.play();});}
-async function stopCall(){try{if(localAudio)localAudio.close();if(localVideo)localVideo.close();await rtcClient.leave()}catch(e){}document.getElementById('videoBox').style.display='none';}
+const APP_ID="648370edcd6244d7bd488f0b52edb200";
+var client,roomId,userName,agoraClient,localTrack;
+
+function masuk(){
+ roomId=document.getElementById('room').value.trim()||"1";
+ userName=document.getElementById('name').value.trim()||"User";
+ if(!userName)return alert('Isi nama');
+ document.getElementById('login').style.display='none';
+ document.getElementById('app').style.display='flex';
+ document.getElementById('st').innerText="Connecting MQTT...";
+ client=mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+ client.on('connect',()=>{
+  document.getElementById('st').innerText="Connected!";
+  client.subscribe('chatandvc/'+roomId);
+  addMsg('System: Kamu masuk room '+roomId);
+ });
+ client.on('message',(t,m)=>{
+  try{
+   let d=JSON.parse(m.toString());
+   if(d.name!=userName) addMsg(d.name+': '+d.text,false);
+  }catch(e){}
+ });
+ client.on('error',()=>{document.getElementById('st').innerText="MQTT Error";});
+}
+function addMsg(t,me){
+ let d=document.createElement('div');d.className='m'+(me?' me':'');d.innerText=t;
+ document.getElementById('msgs').appendChild(d);
+ document.getElementById('msgs').scrollTop=99999;
+}
+function kirim(){
+ let i=document.getElementById('txt');let txt=i.value.trim();if(!txt)return;
+ addMsg('Kamu: '+txt,true);
+ client.publish('chatandvc/'+roomId,JSON.stringify({name:userName,text:txt}));
+ i.value='';
+}
+async function startVC(){
+ try{
+  let res=await fetch('/api/rtc-token?channel='+roomId);
+  let data=await res.json();
+  agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+  await agoraClient.join(APP_ID,roomId,data.token||null,0);
+  localTrack=await AgoraRTC.createMicrophoneAndCameraTracks();
+  localTrack[1].play(document.getElementById('local'));
+  await agoraClient.publish(localTrack);
+  agoraClient.on('user-published',async(u,mt)=>{
+   await agoraClient.subscribe(u,mt);
+   if(mt=='video')u.videoTrack.play(document.getElementById('remote'));
+   if(mt=='audio')u.audioTrack.play();
+  });
+  alert('Video ON');
+ }catch(e){alert('VC Error: '+e.message+' - tapi chat tetap jalan');}
+}
 </script>
 </body>
 </html>
