@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat FIX - Pasti Nyambung</title>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N_4.20.2.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+body{margin:0;font-family:sans-serif;background:#111;color:#fff}
+#join{position:fixed;inset:0;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;z-index:99}
+#join div{width:90%;max-width:320px;padding:20px}
+input{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:8px}
+button{width:100%;padding:12px;background:#25D366;color:#fff;border:0;border-radius:8px;font-weight:bold}
+#header{height:50px;background:#075E54;display:flex;align-items:center;padding:0 10px}
+#msgs{height:calc(100vh - 110px);overflow:auto;padding:10px;background:#e5ddd5}
+.bubble{padding:8px 10px;border-radius:8px;margin:5px 0;color:#000;max-width:70%}
+.me{background:#dcf8c6;margin-left:auto}
+.other{background:#fff}
+#inputBar{position:fixed;bottom:0;width:100%;height:50px;background:#f0f0f0;display:flex;padding:5px;gap:5px}
+#inputBar input{flex:1;margin:0}
+#videoBox{position:fixed;inset:0;background:#000;z-index:50;display:none}
+#myVideo{position:absolute;width:110px;height:140px;right:10px;bottom:80px;border:2px solid #fff;border-radius:8px}
+#end{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:red;color:#fff;border:0;padding:10px 20px;border-radius:20px}
+</style>
+</head>
+<body>
+<div id="join"><div><h3>Masuk Room FIX</h3><input id="roomIn" value="1"><input id="nameIn" placeholder="Nama kamu"><button onclick="join()">Masuk</button></div></div>
+<div id="header"><span id="roomName"></span><span style="margin-left:auto;font-size:22px" onclick="startVideo()">📹</span></div>
+<div id="msgs"></div>
+<div id="inputBar"><input id="txt" placeholder="Ketik"><button onclick="send()">➤</button></div>
+<div id="videoBox"><div id="remoteVideo" style="width:100%;height:100%"></div><div id="myVideo"></div><button id="end" onclick="stopCall()">Tutup</button></div>
+<script>
+var cfg={databaseURL:"https://chat-fix-1a-default-rtdb.firebaseio.com/"};firebase.initializeApp(cfg);
+var APP_ID="cc59dc5a6c0d4fd09c6ca3cf5f5c11f4";var TOKEN_URL="/api/rtc-token";
+var channel,myName,dbRef,rtcClient,localAudio,localVideo;
+function join(){channel=document.getElementById('roomIn').value.trim();myName=document.getElementById('nameIn').value.trim();if(!myName){alert('Isi nama');return}document.getElementById('join').style.display='none';document.getElementById('roomName').innerText=channel;dbRef=firebase.database().ref('fix/'+channel);dbRef.on('child_added',s=>{var d=s.val();var div=document.createElement('div');div.className='bubble '+(d.name===myName?'me':'other');div.innerHTML='<b>'+d.name+'</b><br>'+d.text;document.getElementById('msgs').appendChild(div);document.getElementById('msgs').scrollTop=9999;});dbRef.push({name:myName,text:'gabung'});}
+function send(){var t=document.getElementById('txt').value.trim();if(!t)return;dbRef.push({name:myName,text:t});document.getElementById('txt').value='';}
+async function getToken(){try{var r=await fetch(TOKEN_URL+'?channel='+channel+'&uid=0');var j=await r.json();return j.token}catch(e){return null}}
+async function startVideo(){document.getElementById('videoBox').style.display='block';rtcClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});var tok=await getToken();await rtcClient.join(APP_ID,channel,tok||null,null);localVideo=await AgoraRTC.createCameraVideoTrack();localVideo.play(document.getElementById('myVideo'));localAudio=await AgoraRTC.createMicrophoneAudioTrack();await rtcClient.publish([localAudio,localVideo]);rtcClient.on('user-published',async(u,m)=>{await rtcClient.subscribe(u,m);if(m==='video')u.videoTrack.play(document.getElementById('remoteVideo'));if(m==='audio')u.audioTrack.play();});}
+async function stopCall(){try{if(localAudio)localAudio.close();if(localVideo)localVideo.close();await rtcClient.leave()}catch(e){}document.getElementById('videoBox').style.display='none';}
+</script>
+</body>
+</html>
