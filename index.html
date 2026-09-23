@@ -1,82 +1,65 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Foto Bicara - Pedamaran FINAL</title>
+<title>Foto Jadi Video Bicara</title>
 <style>
-body{background:#111;color:#fff;font-family:sans-serif;padding:15px}
-.card{background:#1e1e1e;padding:15px;border-radius:12px;margin-bottom:15px}
-input{width:100%;padding:10px;margin:8px 0;background:#222;color:#fff;border:1px solid #444;border-radius:8px}
-button{background:#00ff88;color:#000;padding:14px;width:100%;border:none;border-radius:8px;font-weight:bold;font-size:16px}
-#preview{width:100%;max-height:300px;object-fit:contain;display:none;margin-top:10px;border-radius:8px}
-#resultVideo{width:100%;display:none;margin-top:15px;border-radius:12px}
+*{box-sizing:border-box}body{margin:0;background:#0a0a0a;color:#fff;font-family:system-ui;padding:20px}
+.card{max-width:480px;margin:0 auto;background:#151515;border-radius:20px;padding:20px;border:1px solid #222}
+input{width:100%;padding:14px;border-radius:12px;border:1px solid #333;background:#1e1e1e;color:#fff}
+button{width:100%;padding:16px;border-radius:14px;border:none;background:#00ff88;color:#000;font-weight:800;font-size:16px;margin-top:18px}
+#log{background:#111;border-radius:12px;padding:12px;margin-top:14px;font-size:12px;white-space:pre-wrap;min-height:60px}
+video{width:100%;border-radius:16px;margin-top:14px;display:none}
 </style>
 </head>
 <body>
-<h2>🎙️ Foto Bicara Pedamaran - VERSI JADI</h2>
-
 <div class="card">
-<b>1. Token Replicate (r8_...):</b>
-<input id="token" placeholder="Paste r8_.... panjang di sini">
+<h2>Foto + Audio = Video Bicara</h2>
+<label>1. Token r8_</label>
+<input id="token" placeholder="r8_...">
+<label>2. Foto</label>
+<input id="foto" type="file" accept="image/*">
+<label>3. Audio 1-2 Menit</label>
+<input id="audio" type="file" accept="audio/*">
+<button id="btn">JADIIN VIDEO BICARA</button>
+<div id="log">Siap. Token, foto, audio 1-2 menit.</div>
+<video id="result" controls playsinline></video>
 </div>
-
-<div class="card">
-<b>2. Foto Wajah:</b>
-<input type="file" id="imageInput" accept="image/*">
-<img id="preview" />
-</div>
-
-<div class="card">
-<b>3. Audio / Suara:</b>
-<input type="file" id="audioInput" accept="audio/*">
-<audio id="audioPreview" controls style="width:100%;display:none"></audio>
-</div>
-
-<div class="card">
-<button id="genBtn">GENERATE VIDEO BICARA</button>
-<div id="log" style="font-size:12px;color:#aaa;margin-top:10px">Siap...</div>
-<video id="resultVideo" controls autoplay loop></video>
-</div>
-
 <script>
-let imageDataUrl=null, audioDataUrl=null;
-imageInput.onchange=e=>{
-  const r=new FileReader();
-  r.onload=ev=>{imageDataUrl=ev.target.result;preview.src=imageDataUrl;preview.style.display='block'}
-  r.readAsDataURL(e.target.files[0])
+const tokenEl=document.getElementById('token');
+tokenEl.value=localStorage.getItem('rep_token')||'';
+tokenEl.oninput=()=>localStorage.setItem('rep_token',tokenEl.value);
+let fotoFile=null,audioFile=null;
+document.getElementById('foto').onchange=e=>fotoFile=e.target.files[0];
+document.getElementById('audio').onchange=e=>audioFile=e.target.files[0];
+async function uploadFile(file,token){
+  const fd=new FormData(); fd.append('content',file);
+  const res=await fetch('https://api.replicate.com/v1/files',{method:'POST',headers:{'Authorization':'Token '+token},body:fd});
+  const j=await res.json(); return j.urls.get;
 }
-audioInput.onchange=e=>{
-  const r=new FileReader();
-  r.onload=ev=>{audioDataUrl=ev.target.result;audioPreview.src=audioDataUrl;audioPreview.style.display='block'}
-  r.readAsDataURL(e.target.files[0])
-}
-genBtn.onclick=async()=>{
-  const token=tokenInput=document.getElementById('token').value.trim();
-  const log=document.getElementById('log');
-  if(!token.startsWith('r8_')){alert('Token salah! Harus r8_...');return}
-  if(!imageDataUrl||!audioDataUrl){alert('Pilih foto & audio dulu');return}
+document.getElementById('btn').onclick=async()=>{
+  const token=tokenEl.value.trim();
+  if(!token.startsWith('r8_')){document.getElementById('log').textContent='Token harus r8_';return}
+  if(!fotoFile||!audioFile){document.getElementById('log').textContent='Pilih foto & audio';return}
+  const log=document.getElementById('log'); const btn=document.getElementById('btn');
+  btn.disabled=true; log.textContent='1/3 Upload...';
   try{
-    genBtn.disabled=true;
-    log.textContent="Membuat prediksi...";
-    let res=await fetch('https://api.replicate.com/v1/predictions',{
-      method:'POST',
-      headers:{'Authorization':'Token '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({version:'8d2d2a941daf318bb040cf7be9aebe10dfc1b52d18a490a9d9cd41e1d725a5c814',input:{face:imageDataUrl,audio:audioDataUrl}})
-    });
-    if(!res.ok) throw new Error(await res.text());
-    let pred=await res.json();
-    log.textContent="ID: "+pred.id+" - Proses AI 30-60 detik...";
-    while(pred.status!=='succeeded'&&pred.status!=='failed'){
-      await new Promise(r=>setTimeout(r,3000));
-      let r2=await fetch('https://api.replicate.com/v1/predictions/'+pred.id,{headers:{'Authorization':'Token '+token}});
-      pred=await r2.json();
-      log.textContent="Status: "+pred.status+"...";
+    const faceUrl=await uploadFile(fotoFile,token);
+    const audioUrl=await uploadFile(audioFile,token);
+    log.textContent='2/3 Bikin video (60-120 detik utk 1-2 menit)...';
+    let res=await fetch('https://api.replicate.com/v1/models/devxpy/cog-wav2lip/predictions',{method:'POST',headers:{'Authorization':'Token '+token,'Content-Type':'application/json'},body:JSON.stringify({input:{face:faceUrl,audio:audioUrl}})});
+    let j=await res.json(); let cur=j;
+    while(cur.status!=='succeeded'&&cur.status!=='failed'){
+      await new Promise(r=>setTimeout(r,4000));
+      let p=await fetch('https://api.replicate.com/v1/predictions/'+cur.id,{headers:{'Authorization':'Token '+token}});
+      cur=await p.json(); log.textContent='Status: '+cur.status;
     }
-    if(pred.status==='failed') throw new Error(pred.error);
-    resultVideo.src=pred.output;
-    resultVideo.style.display='block';
-    log.textContent="SELESAI! Video jadi!";
-  }catch(e){log.textContent="ERROR: "+e.message.slice(0,600)}finally{genBtn.disabled=false}
+    if(cur.status!=='succeeded'){log.textContent='Gagal:'+cur.error; btn.disabled=false; return}
+    log.textContent='JADI! Ada suaranya!';
+    const out=Array.isArray(cur.output)?cur.output[0]:cur.output;
+    const v=document.getElementById('result'); v.src=out; v.style.display='block'; v.play();
+  }catch(e){log.textContent='Error: '+e.message} btn.disabled=false;
 }
 </script>
 </body>
